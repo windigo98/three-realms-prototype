@@ -54,10 +54,18 @@ namespace ThreeRealms
             var rp = GraphicsSettings.currentRenderPipeline;
             if (rp is UniversalRenderPipelineAsset urp)
             {
-                urp.renderScale = tier == QualityTier.Low ? 0.7f : (tier == QualityTier.Medium ? 0.85f : 1f);
-                urp.msaaSampleCount = tier == QualityTier.High ? 2 : 1;
-                urp.shadowDistance = QualitySettings.shadowDistance;
-                urp.supportsHDR = tier != QualityTier.Low;
+                try
+                {
+                    urp.renderScale = tier == QualityTier.Low ? 0.7f : (tier == QualityTier.Medium ? 0.85f : 1f);
+                    urp.msaaSampleCount = 1; // MSAA is flaky on iOS Safari WebGL
+                    urp.shadowDistance = QualitySettings.shadowDistance;
+                    // HDR off on WebGL: several URP debug/copy shaders are missing there.
+                    urp.supportsHDR = false;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("QualityTier: could not tweak URP asset: " + e.Message);
+                }
             }
         }
     }

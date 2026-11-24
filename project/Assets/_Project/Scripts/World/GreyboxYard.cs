@@ -46,19 +46,7 @@ namespace ThreeRealms
             Wall(root, "PillarR", new Vector3(-22f, 2.0f, 20f), new Vector3(2f, 4f, 2f), wallMat);
         }
 
-        static Material MakeMat(Color c)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                         ?? Shader.Find("Universal Render Pipeline/Simple Lit")
-                         ?? Shader.Find("Sprites/Default")
-                         ?? Shader.Find("Standard");
-            var m = new Material(shader);
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.05f);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.25f);
-            return m;
-        }
+        static Material MakeMat(Color c) => GreyboxMaterials.Make(c);
 
         static GameObject Quad(Transform root, string name, Vector3 pos, Vector3 scale, Material mat)
         {
@@ -78,6 +66,7 @@ namespace ThreeRealms
 
         static void Apply(GameObject go, Material mat)
         {
+            if (mat == null) return;
             var r = go.GetComponent<Renderer>();
             if (r != null) r.sharedMaterial = mat;
         }

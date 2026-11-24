@@ -127,17 +127,6 @@ namespace ThreeRealms
             if (c != null) Object.Destroy(c);
         }
 
-        static Material Mat(Color c)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                         ?? Shader.Find("Universal Render Pipeline/Simple Lit")
-                         ?? Shader.Find("Standard");
-            var m = new Material(shader);
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.15f);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.4f);
-            return m;
-        }
+        static Material Mat(Color c) => GreyboxMaterials.Make(c);
     }
 }

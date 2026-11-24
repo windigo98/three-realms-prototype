@@ -132,14 +132,6 @@ namespace ThreeRealms
             return root;
         }
 
-        static Material DummyMat(Color c)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                         ?? Shader.Find("Standard");
-            var m = new Material(shader);
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
-            return m;
-        }
+        static Material DummyMat(Color c) => GreyboxMaterials.Make(c);
     }
 }

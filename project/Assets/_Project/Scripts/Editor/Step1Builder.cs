@@ -43,6 +43,71 @@ namespace ThreeRealms.Editor
         {
             Directory.CreateDirectory("Assets/_Project/Scenes");
             Directory.CreateDirectory("Assets/_Project/Settings");
+            Directory.CreateDirectory("Assets/_Project/Resources");
+            EnsureGreyboxMaterial();
+            IncludeShaders(
+                "Universal Render Pipeline/Lit",
+                "Universal Render Pipeline/Simple Lit"
+            );
+        }
+
+        static void EnsureGreyboxMaterial()
+        {
+            const string path = "Assets/_Project/Resources/GreyboxLit.mat";
+            var shader = Shader.Find("Universal Render Pipeline/Lit")
+                         ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (shader == null)
+            {
+                Debug.LogError("[Step1] Could not find URP Lit to build GreyboxLit.mat");
+                return;
+            }
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing == null)
+            {
+                var mat = new Material(shader);
+                mat.SetColor("_BaseColor", new Color(0.5f, 0.51f, 0.54f, 1f));
+                AssetDatabase.CreateAsset(mat, path);
+                Debug.Log("[Step1] Created " + path);
+            }
+            else if (existing.shader != shader)
+            {
+                existing.shader = shader;
+                EditorUtility.SetDirty(existing);
+            }
+        }
+
+        static void IncludeShaders(params string[] names)
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+            if (assets == null || assets.Length == 0) return;
+            var so = new SerializedObject(assets[0]);
+            var arr = so.FindProperty("m_AlwaysIncludedShaders");
+            if (arr == null) return;
+            var have = new System.Collections.Generic.HashSet<string>();
+            for (int i = 0; i < arr.arraySize; i++)
+            {
+                var sh = arr.GetArrayElementAtIndex(i).objectReferenceValue as Shader;
+                if (sh != null) have.Add(sh.name);
+            }
+            bool changed = false;
+            foreach (var name in names)
+            {
+                if (have.Contains(name)) continue;
+                var sh = Shader.Find(name);
+                if (sh == null)
+                {
+                    Debug.LogWarning("[Step1] Shader not found: " + name);
+                    continue;
+                }
+                arr.arraySize++;
+                arr.GetArrayElementAtIndex(arr.arraySize - 1).objectReferenceValue = sh;
+                changed = true;
+            }
+            if (changed)
+            {
+                so.ApplyModifiedPropertiesWithoutUndo();
+                Debug.Log("[Step1] Added URP Lit to Always Included Shaders");
+            }
         }
 
         static void ApplyPlayerSettings()
@@ -58,14 +123,24 @@ namespace ThreeRealms.Editor
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.gcIncremental = true;
             PlayerSettings.stripEngineCode = true;
-            PlayerSettings.SetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
+            // Medium stripping: High can drop needed types; size is still fine without Brotli.
+            PlayerSettings.SetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.WebGL, ManagedStrippingLevel.Medium);
             PlayerSettings.SetIl2CppCodeGeneration(UnityEditor.Build.NamedBuildTarget.WebGL, UnityEditor.Build.Il2CppCodeGeneration.OptimizeSize);
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
-            PlayerSettings.WebGL.decompressionFallback = true;
-            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.None;
-            PlayerSettings.WebGL.dataCaching = true;
+            // GitHub Pages does not send Content-Encoding. Brotli + JS fallback
+            // runs a blob-worker decoder that fails on iOS Safari ("undefined at blob:...:9").
+            // Disabled = plain files Pages can serve as-is. No decompressor needed.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+            PlayerSettings.WebGL.dataCaching = false;
             PlayerSettings.WebGL.nameFilesAsHashes = false;
             PlayerSettings.WebGL.template = "APPLICATION:Default";
+            PlayerSettings.WebGL.threadsSupport = false;
+            PlayerSettings.WebGL.initialMemorySize = 64;
+            PlayerSettings.WebGL.maximumMemorySize = 512;
+            PlayerSettings.WebGL.memoryGrowthMode = WebGLMemoryGrowthMode.Linear;
+            PlayerSettings.WebGL.linearMemoryGrowthStep = 16;
+            PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.Default;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, true);
             PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
             TrySetActiveInputHandler(1); // Input System package only
