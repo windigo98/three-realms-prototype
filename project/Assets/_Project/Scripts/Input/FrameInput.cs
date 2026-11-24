@@ -24,6 +24,8 @@ namespace ThreeRealms
         [HideInInspector] public bool UiDodge;
         [HideInInspector] public bool UiAttack;
         [HideInInspector] public bool UiCycleTarget;
+        /// <summary>Set by GameHud when a pointer is on the stick, look area, or action buttons.</summary>
+        [HideInInspector] public bool UiPointerConsumed;
 
         public float LookSensitivity = 1.4f;
         public float GamepadLookSensitivity = 90f;
@@ -64,7 +66,7 @@ namespace ThreeRealms
                 if (k.sqrMagnitude > 0.01f) move = k;
 
                 dodge |= Edge(kb.spaceKey, kb.leftShiftKey);
-                attack |= Edge(kb.jKey) || WasPressed(Mouse.current != null ? Mouse.current.leftButton : null);
+                attack |= Edge(kb.jKey);
                 cycle |= Edge(kb.tabKey);
                 debug |= Edge(kb.backquoteKey, kb.f1Key);
             }
@@ -78,6 +80,12 @@ namespace ThreeRealms
                     Vector2 delta = mouse.delta.ReadValue();
                     look += delta * LookSensitivity;
                 }
+                // Left click attacks only when the HUD did not consume the pointer
+                // (stick / look / HIT / DODGE). iOS often synthesizes a mouse from touch 0.
+                if (!UiPointerConsumed && !PointerLocked)
+                    attack |= WasPressed(mouse.leftButton);
+                else if (PointerLocked)
+                    attack |= WasPressed(mouse.leftButton);
             }
 
             var pad = Gamepad.current;
@@ -105,6 +113,7 @@ namespace ThreeRealms
             UiAttack = false;
             UiCycleTarget = false;
             UiLook = Vector2.zero;
+            UiPointerConsumed = false;
         }
 
         bool Edge(params ButtonControl[] buttons)

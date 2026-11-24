@@ -179,12 +179,43 @@ namespace ThreeRealms.Editor
             QualitySettings.SetQualityLevel(Mathf.Min(1, count - 1), true);
         }
 
+        static void EnsurePhysicsKeep()
+        {
+            var existing = GameObject.Find("PhysicsKeep");
+            if (existing != null) Object.DestroyImmediate(existing);
+            var keep = new GameObject("PhysicsKeep");
+            var cap = new GameObject("KeepCapsule");
+            cap.transform.SetParent(keep.transform, false);
+            cap.AddComponent<CapsuleCollider>();
+            var sph = new GameObject("KeepSphere");
+            sph.transform.SetParent(keep.transform, false);
+            sph.AddComponent<SphereCollider>();
+            var box = new GameObject("KeepBox");
+            box.transform.SetParent(keep.transform, false);
+            box.AddComponent<BoxCollider>();
+            var cc = new GameObject("KeepCharacterController");
+            cc.transform.SetParent(keep.transform, false);
+            cc.AddComponent<CharacterController>();
+            var rbGo = new GameObject("KeepRigidbody");
+            rbGo.transform.SetParent(keep.transform, false);
+            rbGo.AddComponent<BoxCollider>();
+            var rb = rbGo.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            keep.transform.position = new Vector3(0f, -1000f, 0f);
+            keep.SetActive(false);
+            Debug.Log("[Step1] Added PhysicsKeep stub (Capsule/Sphere/Box/CharacterController/Rigidbody)");
+        }
+
         static void CreateScene()
+
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             // Keep the default camera and light; bootstrap will reuse the camera and add the yard.
             var boot = new GameObject("Step1Bootstrap");
             boot.AddComponent<Step1Bootstrap>();
+            // Referenced in the built scene so stripEngineCode keeps these types.
+            // CreatePrimitive(Capsule/Sphere) needs CapsuleCollider/SphereCollider at runtime.
+            EnsurePhysicsKeep();
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);

@@ -25,7 +25,12 @@ namespace ThreeRealms
         float _windowUntil;
         float _busyUntil;
         float _hitStopUntil;
+        float _lastRecover = 0.3f;
         int _nextHit;
+
+        Transform _swing;
+        Quaternion _swingRest;
+        bool _swingResolved;
 
         void Awake()
         {
@@ -77,6 +82,39 @@ namespace ThreeRealms
             Fire(hit);
         }
 
+        void LateUpdate()
+        {
+            EnsureSwing();
+            if (_swing == null) return;
+            if (IsAttacking)
+            {
+                float rec = Mathf.Max(0.05f, _lastRecover);
+                float t = Mathf.Clamp01(1f - (_busyUntil - Time.time) / rec);
+                float amp = PendingHit >= 2 ? 95f : 70f;
+                float ang = Mathf.Sin(t * Mathf.PI) * amp;
+                _swing.localRotation = _swingRest * Quaternion.Euler(ang, ang * 0.25f, 0f);
+            }
+            else
+            {
+                _swing.localRotation = Quaternion.Slerp(_swing.localRotation, _swingRest, 18f * Time.deltaTime);
+            }
+        }
+
+        void EnsureSwing()
+        {
+            if (_swingResolved) return;
+            _swingResolved = true;
+            _swing = FindSwing("HP_WM") ?? FindSwing("HP_RA") ?? FindSwing("HP_LA");
+            if (_swing != null) _swingRest = _swing.localRotation;
+        }
+
+        Transform FindSwing(string anchorName)
+        {
+            var t = transform.Find(anchorName);
+            if (t == null) return null;
+            return t.childCount > 0 ? t.GetChild(0) : t;
+        }
+
         void Fire(int hit)
         {
             IsAttacking = true;
@@ -86,9 +124,10 @@ namespace ThreeRealms
             float dmg = (Damage != null && hit < Damage.Length) ? Damage[hit] : 10f;
             float stop = (HitStop != null && hit < HitStop.Length) ? HitStop[hit] : 0.05f;
             float rec = (Recover != null && hit < Recover.Length) ? Recover[hit] : 0.3f;
+            _lastRecover = rec;
 
             var dummy = FindTargetDummy();
-            if (dummy != null && Targeting.DistanceToTarget() <= Range)
+            if (dummy != null)
             {
                 dummy.ApplyHit(dmg, Body != null ? Body.position : transform.position, hit);
                 if (Vitals != null)
@@ -98,6 +137,11 @@ namespace ThreeRealms
                 }
                 if (stop > 0f)
                     _hitStopUntil = Time.unscaledTime + stop;
+                Debug.Log($"[Step1] hit dummy dmg={dmg} health={dummy.Health} charge={(Vitals != null ? Vitals.Charge : 0f)} combo={hit}");
+            }
+            else
+            {
+                Debug.Log($"[Step1] swing miss combo={hit}");
             }
 
             _busyUntil = Time.time + rec;
@@ -108,9 +152,45 @@ namespace ThreeRealms
 
         TrainingDummy FindTargetDummy()
         {
-            if (Targeting == null || Targeting.Target == null) return null;
-            return Targeting.Target.GetComponent<TrainingDummy>()
-                   ?? Targeting.Target.GetComponentInParent<TrainingDummy>();
+            TrainingDummy best = null;
+            float bestD = Range;
+
+            if (Targeting != null && Targeting.Target != null)
+            {
+                var locked = Targeting.Target.GetComponent<TrainingDummy>()
+                             ?? Targeting.Target.GetComponentInParent<TrainingDummy>();
+                if (locked != null)
+                {
+                    float d = Targeting.DistanceToTarget();
+                    if (d <= Range) return locked;
+                }
+            }
+
+            foreach (var dummy in TrainingDummy.All)
+            {
+                if (dummy == null) continue;
+                var a = transform.position; a.y = 0f;
+                var b = dummy.transform.position; b.y = 0f;
+                float dist = Vector3.Distance(a, b);
+                if (dist <= Range && dist < bestD)
+                {
+                    bestD = dist;
+                    best = dummy;
+                }
+            }
+
+            if (best != null) return best;
+
+            // Collider backup once Capsule/Sphere/Box are kept in the player.
+            var origin = (Body != null ? Body.position : transform.position) + Vector3.up * 1.1f + transform.forward * 0.8f;
+            var cols = Physics.OverlapSphere(origin, Mathf.Max(1.2f, Range * 0.6f));
+            foreach (var col in cols)
+            {
+                if (col == null) continue;
+                var dummy = col.GetComponentInParent<TrainingDummy>();
+                if (dummy != null) return dummy;
+            }
+            return null;
         }
     }
 }

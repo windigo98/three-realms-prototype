@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 namespace ThreeRealms
 {
     /// <summary>Health / Pulse / Charge bars, FPS, virtual stick, look drag, and a debug menu.</summary>
+    [DefaultExecutionOrder(-200)]
     public class GameHud : MonoBehaviour
     {
         public FrameVitals Vitals;
@@ -28,6 +29,8 @@ namespace ThreeRealms
 
         const float StickRadius = 90f;
 
+        float Scale => Mathf.Clamp(Screen.height / 700f, 0.85f, 2.2f);
+
         void Update()
         {
             _fpsFrames++;
@@ -38,6 +41,9 @@ namespace ThreeRealms
                 _fpsFrames = 0;
                 _fpsAccum = 0f;
             }
+            // Poll touches here (before FrameInput) so HIT/DODGE fire the same frame.
+            // IMGUI GUI.Button is unreliable on iOS/WebGL with the Input System only.
+            HandleTouch(Scale);
             DamagePopup.Cull();
         }
 
@@ -63,7 +69,6 @@ namespace ThreeRealms
             GUI.Label(new Rect(Screen.width - 150f * s, 10f * s, 138f * s, 28f * s),
                 $"FPS {_fps:0.0}", fpsStyle);
 
-            HandleTouch(s);
             DrawStick(s);
             DrawButtons(s);
             DrawPopups(s);
@@ -75,6 +80,46 @@ namespace ThreeRealms
             if (ShowDebug) DrawDebug(s);
 
             if (!string.IsNullOrEmpty(_pulseWarn) && Time.unscaledTime < 0.01f) _pulseWarn = null;
+        }
+
+        void ActionRects(float s, out Rect hit, out Rect dodge)
+        {
+            // IMGUI space: origin top-left, same as GUI.Box.
+            float bw = 88f * s, bh = 88f * s;
+            float ax = Screen.width - 16f * s - bw;
+            float ay = Screen.height - 16f * s - bh;
+            float dx = ax - 16f * s - bw;
+            float dy = ay - 10f * s;
+            hit = new Rect(ax, ay, bw, bh);
+            dodge = new Rect(dx, dy, bw, bh);
+        }
+
+        static Vector2 ToGui(Vector2 screen) => new Vector2(screen.x, Screen.height - screen.y);
+
+        bool InActionButtons(Vector2 screen, float s, out bool hitBtn, out bool dodgeBtn)
+        {
+            ActionRects(s, out var hit, out var dodge);
+            var gui = ToGui(screen);
+            hitBtn = hit.Contains(gui);
+            dodgeBtn = dodge.Contains(gui);
+            return hitBtn || dodgeBtn;
+        }
+
+        bool InActionZone(Vector2 screen, float s)
+        {
+            // Matches the drawn HIT/DODGE cluster, with a little padding.
+            return screen.x > Screen.width - 240f * s && screen.y < 200f * s;
+        }
+
+        void PressAction(bool hitBtn, bool dodgeBtn)
+        {
+            if (Input == null) return;
+            if (hitBtn) Input.UiAttack = true;
+            if (dodgeBtn)
+            {
+                Input.UiDodge = true;
+                if (Vitals != null && Vitals.Pulse < 5f) _pulseWarn = "Need 5 Pulse";
+            }
         }
 
         void HandleTouch(float s)
@@ -93,25 +138,48 @@ namespace ThreeRealms
                     var began = t.press.wasPressedThisFrame;
                     var ended = t.press.wasReleasedThisFrame;
                     usedPointer = true;
+                    if (InActionZone(pos, s) || id == _stickFinger || id == _lookFinger)
+                        Input.UiPointerConsumed = true;
                     RoutePointer(id, pos, began, phasePressed, ended, s);
                 }
             }
-            else if (Mouse.current != null && Mouse.current.leftButton.isPressed)
+
+            var mouse = Mouse.current;
+            if (mouse != null)
             {
-                // Allow click-drag on the left half as a stick when no touchscreen (editor).
-                var pos = Mouse.current.position.ReadValue();
-                if (pos.x < Screen.width * 0.4f && pos.y < Screen.height * 0.55f)
+                var pos = mouse.position.ReadValue();
+                bool down = mouse.leftButton.isPressed;
+                bool began = mouse.leftButton.wasPressedThisFrame;
+                bool ended = mouse.leftButton.wasReleasedThisFrame;
+                if (down || began || ended)
                 {
-                    bool began = Mouse.current.leftButton.wasPressedThisFrame;
-                    RoutePointer(1001, pos, began, true, false, s);
-                    usedPointer = true;
+                    if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn))
+                    {
+                        Input.UiPointerConsumed = true;
+                        if (began) PressAction(hitBtn, dodgeBtn);
+                        usedPointer = true;
+                    }
+                    else if (down && pos.x < Screen.width * 0.4f && pos.y < Screen.height * 0.55f)
+                    {
+                        // Click-drag on the left half as a stick when no dedicated stick finger (editor / desktop).
+                        if (Touchscreen.current == null || Touchscreen.current.touches.Count == 0)
+                        {
+                            Input.UiPointerConsumed = true;
+                            RoutePointer(1001, pos, began, true, ended, s);
+                            usedPointer = true;
+                        }
+                    }
+                    else if (InActionZone(pos, s))
+                    {
+                        Input.UiPointerConsumed = true;
+                    }
                 }
-            }
-            else if (_stickFinger == 1001)
-            {
-                _stickFinger = -1;
-                _stickValue = Vector2.zero;
-                Input.UiMove = Vector2.zero;
+                if (!down && _stickFinger == 1001)
+                {
+                    _stickFinger = -1;
+                    _stickValue = Vector2.zero;
+                    Input.UiMove = Vector2.zero;
+                }
             }
 
             if (!usedPointer && _stickFinger < 0)
@@ -122,9 +190,15 @@ namespace ThreeRealms
 
         void RoutePointer(int id, Vector2 pos, bool began, bool held, bool ended, float s)
         {
-            float btnY = Screen.height - 150f * s;
-            // Ignore pointer over action buttons.
-            if (pos.x > Screen.width - 240f * s && pos.y < 200f * s) return;
+            // Action buttons first so look-drag / stick never steal HIT/DODGE,
+            // including a second finger while the stick is held.
+            if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn))
+            {
+                if (began) PressAction(hitBtn, dodgeBtn);
+                return;
+            }
+            if (id != _stickFinger && id != _lookFinger && InActionZone(pos, s))
+                return;
 
             if (began)
             {
@@ -133,11 +207,13 @@ namespace ThreeRealms
                     _stickFinger = id;
                     _stickCenter = pos;
                     _stickValue = Vector2.zero;
+                    if (Input != null) Input.UiPointerConsumed = true;
                 }
                 else if (pos.x >= Screen.width * 0.45f && _lookFinger < 0)
                 {
                     _lookFinger = id;
                     _lookLast = pos;
+                    if (Input != null) Input.UiPointerConsumed = true;
                 }
             }
 
@@ -193,13 +269,9 @@ namespace ThreeRealms
             float dx = ax - 16f * s - bw;
             float dy = ay - 10f * s;
 
-            if (GUI.Button(new Rect(ax, ay, bw, bh), "HIT", style) && Input != null)
-                Input.UiAttack = true;
-            if (GUI.Button(new Rect(dx, dy, bw, bh), "DODGE", style) && Input != null)
-            {
-                Input.UiDodge = true;
-                if (Vitals != null && Vitals.Pulse < 5f) _pulseWarn = "Need 5 Pulse";
-            }
+            // Visual only. Input is handled in HandleTouch so multi-touch + iOS work.
+            GUI.Box(new Rect(ax, ay, bw, bh), "HIT", style);
+            GUI.Box(new Rect(dx, dy, bw, bh), "DODGE", style);
         }
 
         void DrawPopups(float s)
