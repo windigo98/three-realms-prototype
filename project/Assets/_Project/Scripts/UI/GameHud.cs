@@ -13,6 +13,7 @@ namespace ThreeRealms
         public FrameHardpoints Hardpoints;
         public QualityTierController Quality;
         public FollowCamera CameraRig;
+        public FallRecovery Recovery;
 
         public bool ShowDebug;
         float _fps;
@@ -80,6 +81,17 @@ namespace ThreeRealms
             if (ShowDebug) DrawDebug(s);
 
             if (!string.IsNullOrEmpty(_pulseWarn) && Time.unscaledTime < 0.01f) _pulseWarn = null;
+
+            DrawFallFlash();
+        }
+
+        void DrawFallFlash()
+        {
+            if (Recovery == null || Recovery.Flash01 <= 0f) return;
+            var prev = GUI.color;
+            GUI.color = new Color(0.06f, 0.07f, 0.09f, Recovery.Flash01 * 0.82f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), WhiteTex());
+            GUI.color = prev;
         }
 
         void ActionRects(float s, out Rect hit, out Rect dodge, out Rect jump)

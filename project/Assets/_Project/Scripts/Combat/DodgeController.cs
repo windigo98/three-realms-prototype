@@ -44,6 +44,12 @@ namespace ThreeRealms
             return true;
         }
 
+        public void Cancel()
+        {
+            IsDodging = false;
+            _endTime = 0f;
+        }
+
         public void Tick()
         {
             if (!IsDodging) return;

@@ -96,6 +96,10 @@ namespace ThreeRealms
             var dodge = root.AddComponent<DodgeController>();
             var targeting = root.AddComponent<StickyTargeting>();
             var combo = root.AddComponent<ComboAttack>();
+            var recovery = root.AddComponent<FallRecovery>();
+            recovery.Motor = motor;
+            recovery.Dodge = dodge;
+            recovery.Combo = combo;
             combo.Targeting = targeting;
             combo.Dodge = dodge;
             combo.Body = root.transform;

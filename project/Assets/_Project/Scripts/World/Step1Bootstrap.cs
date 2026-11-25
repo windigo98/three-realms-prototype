@@ -79,6 +79,8 @@ namespace ThreeRealms
             motor.CameraPivot = follow.Pivot;
             var dodge = frame.GetComponent<DodgeController>();
             dodge.CameraPivot = follow.Pivot;
+            var recovery = frame.GetComponent<FallRecovery>();
+            if (recovery != null) recovery.CameraRig = follow;
 
             var hudGo = new GameObject("HUD");
             hudGo.transform.SetParent(root, false);
@@ -89,6 +91,8 @@ namespace ThreeRealms
             hud.Quality = quality;
             hud.CameraRig = follow;
 
+            hud.Recovery = recovery;
+
             var dir = hudGo.AddComponent<Step1Director>();
             dir.Motor = motor;
             dir.Dodge = dodge;
@@ -96,6 +100,7 @@ namespace ThreeRealms
             dir.Targeting = frame.GetComponent<StickyTargeting>();
             dir.Input = frame.GetComponent<FrameInput>();
             dir.Hud = hud;
+            dir.Recovery = recovery;
 
             _ = dummy;
         }

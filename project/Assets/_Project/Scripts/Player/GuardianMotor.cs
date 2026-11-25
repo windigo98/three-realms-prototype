@@ -90,5 +90,28 @@ namespace ThreeRealms
             if (_inJump && transform.position.y > _apexY)
                 _apexY = transform.position.y;
         }
+
+        public void ResetMotion()
+        {
+            _vert = 0f;
+            _inJump = false;
+            _apexY = transform.position.y;
+            PlanarVelocity = Vector3.zero;
+        }
+
+        public void Teleport(Vector3 position)
+        {
+            if (_cc != null) _cc.enabled = false;
+            transform.position = position;
+            if (_cc != null)
+            {
+                _cc.enabled = true;
+                Physics.SyncTransforms();
+            }
+            ResetMotion();
+            IsGrounded = true;
+            _groundedUntil = Time.time + GroundGrace;
+            _vert = -2f;
+        }
     }
 }

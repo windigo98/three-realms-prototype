@@ -62,5 +62,21 @@ namespace ThreeRealms
                 Pivot.rotation = Quaternion.Euler(0f, Yaw, 0f);
             }
         }
+
+        /// <summary>Warp the follow point to the subject so a respawn does not lerp from the void.</summary>
+        public void SnapToSubject()
+        {
+            if (Subject == null) return;
+            Vector3 focus = Subject.position + Vector3.up * 1.4f;
+            Quaternion rot = Quaternion.Euler(Pitch, Yaw, 0f);
+            _pos = focus + rot * new Vector3(0f, Height * 0.15f, -Distance);
+            transform.position = _pos;
+            transform.LookAt(focus, Vector3.up);
+            if (Pivot != null)
+            {
+                Pivot.position = Subject.position;
+                Pivot.rotation = Quaternion.Euler(0f, Yaw, 0f);
+            }
+        }
     }
 }

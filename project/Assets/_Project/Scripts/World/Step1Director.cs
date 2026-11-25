@@ -13,6 +13,7 @@ namespace ThreeRealms
         public StickyTargeting Targeting;
         public FrameInput Input;
         public GameHud Hud;
+        public FallRecovery Recovery;
 
         void Update()
         {
@@ -20,6 +21,12 @@ namespace ThreeRealms
 
             if (Input.ToggleDebugPressed && Hud != null)
                 Hud.ShowDebug = !Hud.ShowDebug;
+
+            if (Recovery != null && Recovery.IsLocked)
+            {
+                TryPointerLock();
+                return;
+            }
 
             if (Input.DodgePressed && Dodge != null)
                 Dodge.TryDodge();
