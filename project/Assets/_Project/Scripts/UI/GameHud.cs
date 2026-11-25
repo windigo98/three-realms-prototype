@@ -41,7 +41,7 @@ namespace ThreeRealms
                 _fpsFrames = 0;
                 _fpsAccum = 0f;
             }
-            // Poll touches here (before FrameInput) so HIT/DODGE fire the same frame.
+            // Poll touches here (before FrameInput) so HIT/DODGE/JUMP fire the same frame.
             // IMGUI GUI.Button is unreliable on iOS/WebGL with the Input System only.
             HandleTouch(Scale);
             DamagePopup.Cull();
@@ -82,39 +82,44 @@ namespace ThreeRealms
             if (!string.IsNullOrEmpty(_pulseWarn) && Time.unscaledTime < 0.01f) _pulseWarn = null;
         }
 
-        void ActionRects(float s, out Rect hit, out Rect dodge)
+        void ActionRects(float s, out Rect hit, out Rect dodge, out Rect jump)
         {
             // IMGUI space: origin top-left, same as GUI.Box.
+            // Thumb cluster, bottom-right:
+            //   [DODGE] [JUMP]
+            //           [HIT ]
             float bw = 88f * s, bh = 88f * s;
+            float gap = 12f * s;
             float ax = Screen.width - 16f * s - bw;
             float ay = Screen.height - 16f * s - bh;
-            float dx = ax - 16f * s - bw;
-            float dy = ay - 10f * s;
             hit = new Rect(ax, ay, bw, bh);
-            dodge = new Rect(dx, dy, bw, bh);
+            jump = new Rect(ax, ay - gap - bh, bw, bh);
+            dodge = new Rect(ax - 16f * s - bw, ay - 10f * s, bw, bh);
         }
 
         static Vector2 ToGui(Vector2 screen) => new Vector2(screen.x, Screen.height - screen.y);
 
-        bool InActionButtons(Vector2 screen, float s, out bool hitBtn, out bool dodgeBtn)
+        bool InActionButtons(Vector2 screen, float s, out bool hitBtn, out bool dodgeBtn, out bool jumpBtn)
         {
-            ActionRects(s, out var hit, out var dodge);
+            ActionRects(s, out var hit, out var dodge, out var jump);
             var gui = ToGui(screen);
             hitBtn = hit.Contains(gui);
             dodgeBtn = dodge.Contains(gui);
-            return hitBtn || dodgeBtn;
+            jumpBtn = jump.Contains(gui);
+            return hitBtn || dodgeBtn || jumpBtn;
         }
 
         bool InActionZone(Vector2 screen, float s)
         {
-            // Matches the drawn HIT/DODGE cluster, with a little padding.
-            return screen.x > Screen.width - 240f * s && screen.y < 200f * s;
+            // HIT + JUMP stacked, DODGE to the left. Taller than the old two-button cluster.
+            return screen.x > Screen.width - 240f * s && screen.y < 280f * s;
         }
 
-        void PressAction(bool hitBtn, bool dodgeBtn)
+        void PressAction(bool hitBtn, bool dodgeBtn, bool jumpBtn)
         {
             if (Input == null) return;
             if (hitBtn) Input.UiAttack = true;
+            if (jumpBtn) Input.UiJump = true;
             if (dodgeBtn)
             {
                 Input.UiDodge = true;
@@ -153,10 +158,10 @@ namespace ThreeRealms
                 bool ended = mouse.leftButton.wasReleasedThisFrame;
                 if (down || began || ended)
                 {
-                    if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn))
+                    if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn, out var jumpBtn))
                     {
                         Input.UiPointerConsumed = true;
-                        if (began) PressAction(hitBtn, dodgeBtn);
+                        if (began) PressAction(hitBtn, dodgeBtn, jumpBtn);
                         usedPointer = true;
                     }
                     else if (down && pos.x < Screen.width * 0.4f && pos.y < Screen.height * 0.55f)
@@ -190,11 +195,11 @@ namespace ThreeRealms
 
         void RoutePointer(int id, Vector2 pos, bool began, bool held, bool ended, float s)
         {
-            // Action buttons first so look-drag / stick never steal HIT/DODGE,
+            // Action buttons first so look-drag / stick never steal HIT/DODGE/JUMP,
             // including a second finger while the stick is held.
-            if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn))
+            if (InActionButtons(pos, s, out var hitBtn, out var dodgeBtn, out var jumpBtn))
             {
-                if (began) PressAction(hitBtn, dodgeBtn);
+                if (began) PressAction(hitBtn, dodgeBtn, jumpBtn);
                 return;
             }
             if (id != _stickFinger && id != _lookFinger && InActionZone(pos, s))
@@ -263,15 +268,11 @@ namespace ThreeRealms
         void DrawButtons(float s)
         {
             var style = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(18 * s), fontStyle = FontStyle.Bold };
-            float bw = 88f * s, bh = 88f * s;
-            float ax = Screen.width - 16f * s - bw;
-            float ay = Screen.height - 16f * s - bh;
-            float dx = ax - 16f * s - bw;
-            float dy = ay - 10f * s;
-
+            ActionRects(s, out var hit, out var dodge, out var jump);
             // Visual only. Input is handled in HandleTouch so multi-touch + iOS work.
-            GUI.Box(new Rect(ax, ay, bw, bh), "HIT", style);
-            GUI.Box(new Rect(dx, dy, bw, bh), "DODGE", style);
+            GUI.Box(hit, "HIT", style);
+            GUI.Box(dodge, "DODGE", style);
+            GUI.Box(jump, "JUMP", style);
         }
 
         void DrawPopups(float s)

@@ -15,6 +15,7 @@ namespace ThreeRealms
         public Vector2 Look;
         public bool DodgePressed;
         public bool AttackPressed;
+        public bool JumpPressed;
         public bool CycleTargetPressed;
         public bool ToggleDebugPressed;
         public bool PointerLocked;
@@ -23,6 +24,7 @@ namespace ThreeRealms
         [HideInInspector] public Vector2 UiLook;
         [HideInInspector] public bool UiDodge;
         [HideInInspector] public bool UiAttack;
+        [HideInInspector] public bool UiJump;
         [HideInInspector] public bool UiCycleTarget;
         /// <summary>Set by GameHud when a pointer is on the stick, look area, or action buttons.</summary>
         [HideInInspector] public bool UiPointerConsumed;
@@ -41,6 +43,7 @@ namespace ThreeRealms
         {
             DodgePressed = false;
             AttackPressed = false;
+            JumpPressed = false;
             CycleTargetPressed = false;
             ToggleDebugPressed = false;
         }
@@ -51,6 +54,7 @@ namespace ThreeRealms
             Vector2 look = UiLook;
             bool dodge = UiDodge;
             bool attack = UiAttack;
+            bool jump = UiJump;
             bool cycle = UiCycleTarget;
             bool debug = false;
 
@@ -65,7 +69,8 @@ namespace ThreeRealms
                 if (k.sqrMagnitude > 1f) k.Normalize();
                 if (k.sqrMagnitude > 0.01f) move = k;
 
-                dodge |= Edge(kb.spaceKey, kb.leftShiftKey);
+                dodge |= Edge(kb.leftShiftKey, kb.leftCtrlKey);
+                jump |= Edge(kb.spaceKey);
                 attack |= Edge(kb.jKey);
                 cycle |= Edge(kb.tabKey);
                 debug |= Edge(kb.backquoteKey, kb.f1Key);
@@ -97,7 +102,8 @@ namespace ThreeRealms
                 if (rs.sqrMagnitude > 0.04f)
                     look += rs * GamepadLookSensitivity * Time.unscaledDeltaTime * 60f;
                 dodge |= Edge(pad.buttonEast, pad.leftShoulder, pad.rightShoulder);
-                attack |= Edge(pad.buttonWest, pad.buttonSouth, pad.rightTrigger);
+                jump |= Edge(pad.buttonSouth);
+                attack |= Edge(pad.buttonWest, pad.rightTrigger);
                 cycle |= Edge(pad.leftTrigger, pad.dpad.up);
                 debug |= Edge(pad.selectButton, pad.startButton);
             }
@@ -106,11 +112,13 @@ namespace ThreeRealms
             Look = look;
             DodgePressed = dodge;
             AttackPressed = attack;
+            JumpPressed = jump;
             CycleTargetPressed = cycle;
             ToggleDebugPressed = debug;
 
             UiDodge = false;
             UiAttack = false;
+            UiJump = false;
             UiCycleTarget = false;
             UiLook = Vector2.zero;
             UiPointerConsumed = false;
